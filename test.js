@@ -1,0 +1,1 @@
+const { neon } = require('@neondatabase/serverless'); const sql = neon('postgresql://neondb_owner:npg_f7prWkLhw3xZ@ep-wandering-truth-ad80paw3.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require'); sql\SELECT 1\.then(console.log).catch(console.error);

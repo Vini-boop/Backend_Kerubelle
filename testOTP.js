@@ -1,0 +1,1 @@
+const { getDb } = require('./src/db'); require('dotenv').config(); async function test() { const sql = getDb(); try { await sql.query('SELECT 1'); console.log('DB ok'); } catch(e) { console.error('DB FAIL:', e); } } test();

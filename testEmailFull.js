@@ -1,0 +1,1 @@
+const { sendVerificationEmail } = require('./src/email'); require('dotenv').config(); sendVerificationEmail('vinmarmak21@gmail.com', 'Test User', '123456').then(() => console.log('Email sent OK')).catch(err => console.error('Email failed!', err));
