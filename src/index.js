@@ -7,15 +7,7 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 app.use(cors({
-    origin: [
-        'http://localhost:8081',   // Expo web
-        'http://localhost:19006',  // Expo web (legacy)
-        'http://localhost:5173',   // Vite web app
-        'http://localhost:3000',   // Web app alt port
-        /^http:\/\/10\./,          // Local network (Expo Go on phone)
-        /^http:\/\/192\.168\./,    // Local network alt range
-        /^http:\/\/172\./,         // Docker/VPN networks
-    ],
+    origin: '*',
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
 }));
