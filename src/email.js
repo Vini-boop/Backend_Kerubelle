@@ -2,10 +2,13 @@ const nodemailer = require('nodemailer');
 
 // Transporter — uses Gmail App Password from .env
 function createTransporter() {
+  if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
+    console.error('CRITICAL: GMAIL_USER or GMAIL_APP_PASSWORD environment variable is missing.');
+  }
   return nodemailer.createTransport({
     host: 'smtp.gmail.com',
-    port: 587,
-    secure: false,
+    port: 465,
+    secure: true, // Use port 465 for SSL/TLS, often bypassing cloud port blocks
     auth: {
       user: process.env.GMAIL_USER,
       pass: process.env.GMAIL_APP_PASSWORD,
