@@ -69,7 +69,7 @@ router.post('/register', async (req, res) => {
         if (existing.length) return res.status(409).json({ error: 'An account with this email already exists.' });
 
         const hash = await bcrypt.hash(password, 10);
-        
+
         // Instead of inserting into users immediately, we store the payload in the otp_codes table
         const payload = { fullName, email, password_hash: hash, phone };
 
@@ -104,7 +104,7 @@ router.post('/verify-otp', async (req, res) => {
         const { email, otp } = req.body;
         if (!email || !otp) return res.status(400).json({ error: 'email and otp are required' });
         const sql = getDb();
-        
+
         // Custom verifyOTP logic to get payload
         const rows = await sql`
             SELECT * FROM otp_codes
@@ -135,7 +135,7 @@ router.post('/verify-otp', async (req, res) => {
         } else {
             return res.status(400).json({ error: 'Invalid registration state' });
         }
-        
+
         res.json({ message: 'Email verified successfully', user, token: makeToken(user) });
     } catch (err) {
         console.error('POST /auth/verify-otp error:', err);
@@ -149,7 +149,7 @@ router.post('/resend-verification', async (req, res) => {
         const { email } = req.body;
         if (!email) return res.status(400).json({ error: 'email is required' });
         const sql = getDb();
-        
+
         const userRows = await sql`SELECT full_name, email_verified FROM users WHERE email = ${email} LIMIT 1`;
         let fullName = '';
         let payload = null;
@@ -191,6 +191,15 @@ router.post('/login', async (req, res) => {
 
         const match = await bcrypt.compare(password, r.password_hash);
         if (!match) return res.status(401).json({ error: 'Incorrect credentials', message: 'Incorrect password' });
+
+        // Block login until the user has verified their email address
+        if (!r.email_verified) {
+            return res.status(403).json({
+                error: 'Email not verified',
+                message: 'Email not verified',
+                code: 'EMAIL_NOT_VERIFIED',
+            });
+        }
 
         const user = mapUser(r);
         res.json({ user, token: makeToken(user) });
