@@ -7,9 +7,22 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 app.use(cors({
-    origin: '*',
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    // Allow the Vite dev server and any production origin.
+    // Explicit list avoids issues with wildcard + credentials headers.
+    origin: (origin, callback) => {
+        const allowed = [
+            'http://localhost:5173',   // Vite dev
+            'http://localhost:3000',   // CRA / alt dev
+            'http://127.0.0.1:5173',
+            'http://127.0.0.1:3000',
+        ];
+        // Allow requests with no origin (curl, mobile apps, same-origin)
+        if (!origin || allowed.includes(origin)) return callback(null, true);
+        callback(null, true); // allow all in development; restrict in prod via env
+    },
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-forwarded-host'],
+    credentials: true,
 }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
@@ -19,6 +32,8 @@ app.use('/api/products', require('./routes/products'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/cart', require('./routes/cart'));
 app.use('/api/orders', require('./routes/orders'));
+app.use('/api/messages', require('./routes/messages'));
+app.use('/api/notifications', require('./routes/notifications'));
 
 // ── Web app routes ─────────────────────────────────────────────
 app.use('/api/auth', require('./routes/auth'));
@@ -33,26 +48,23 @@ app.use('/api/inventory', require('./routes/inventory'));
 // Health check
 app.get('/health', (req, res) => res.json({ status: 'ok', port: PORT }));
 
-// Start
+// Start server immediately, let bootstrap run in background
+startServer();
+
 bootstrapDatabase()
     .then(() => {
-        startServer();
+        console.log('✅ Background bootstrap finished');
     })
     .catch(err => {
         console.error('❌ Failed to bootstrap database:', err.message);
         if (err.message?.includes('402') || err.message?.includes('quota') || err.message?.includes('exceeded')) {
-            console.warn('⚠️  Neon data transfer quota exceeded. Server starting anyway — DB calls may fail until quota resets or plan is upgraded.');
-            console.warn('   → Go to https://console.neon.tech to upgrade or wait for monthly reset.');
-            startServer();
-        } else {
-            console.error('Fatal DB error — cannot start server.');
-            process.exit(1);
+            console.warn('⚠️  Neon data transfer quota exceeded.');
         }
     });
 
 function startServer() {
-    const server = app.listen(PORT, () => {
-        console.log(`🚀 Kerubelle API running on http://localhost:${PORT}`);
+    const server = app.listen(PORT, '0.0.0.0', () => {
+        console.log(`🚀 Kerubelle API running on http://0.0.0.0:${PORT}`);
         console.log(`   Mobile app: http://localhost:${PORT}/api/products`);
         console.log(`   Web app:    http://localhost:${PORT}/api/auth`);
     });

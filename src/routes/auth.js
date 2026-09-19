@@ -65,12 +65,17 @@ router.post('/register', async (req, res) => {
             return res.status(400).json({ error: 'fullName, email, and password are required' });
 
         const sql = getDb();
-        const existing = await sql`SELECT id FROM users WHERE email = ${email} LIMIT 1`;
-        if (existing.length) return res.status(409).json({ error: 'An account with this email already exists.' });
+        const existing = await sql`SELECT id, email_verified FROM users WHERE email = ${email} LIMIT 1`;
+
+        // If a fully verified account already exists, reject
+        if (existing.length && existing[0].email_verified) {
+            return res.status(409).json({ error: 'An account with this email already exists.' });
+        }
+
+        // If account exists but email is NOT verified, allow re-sending the OTP
+        // without creating a duplicate user row.
 
         const hash = await bcrypt.hash(password, 10);
-
-        // Instead of inserting into users immediately, we store the payload in the otp_codes table
         const payload = { fullName, email, password_hash: hash, phone };
 
         let otp;
@@ -90,7 +95,6 @@ router.post('/register', async (req, res) => {
             return res.status(500).json({ error: 'Failed to send verification email. Please check your email configuration.' });
         }
 
-        // We do not return the user or token yet because they are not verified.
         res.status(201).json({ message: 'Registration successful. Check your email for a verification code.' });
     } catch (err) {
         console.error('POST /auth/register error:', err);
@@ -205,6 +209,49 @@ router.post('/login', async (req, res) => {
         res.json({ user, token: makeToken(user) });
     } catch (err) {
         console.error('POST /auth/login error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// GET /api/auth/check-registration?email=...
+// Returns the registration/verification state for a given email.
+// Used by the web frontend to show the right UI after signup.
+router.get('/check-registration', async (req, res) => {
+    try {
+        const { email } = req.query;
+        if (!email) return res.status(400).json({ error: 'email query param is required' });
+
+        const sql = getDb();
+        const userRows = await sql`SELECT email_verified FROM users WHERE email = ${email} LIMIT 1`;
+
+        if (userRows.length) {
+            return res.json({
+                exists: true,
+                verified: userRows[0].email_verified,
+                message: userRows[0].email_verified
+                    ? 'Account is verified. You can log in.'
+                    : 'Account exists but email is not verified.',
+            });
+        }
+
+        // Check for pending OTP (user registered but not yet verified — no users row yet)
+        const pendingRows = await sql`
+            SELECT id FROM otp_codes
+            WHERE email = ${email} AND type = 'verify' AND used = FALSE
+            AND expires_at > NOW()
+            ORDER BY created_at DESC LIMIT 1
+        `;
+
+        return res.json({
+            exists: false,
+            verified: false,
+            pendingVerification: pendingRows.length > 0,
+            message: pendingRows.length > 0
+                ? 'Verification code is pending. Check your email.'
+                : 'No account found for this email.',
+        });
+    } catch (err) {
+        console.error('GET /auth/check-registration error:', err);
         res.status(500).json({ error: err.message });
     }
 });
